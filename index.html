@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Habit Tracker</title>
+
+<!-- PWA setup -->
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#14181f" />
+<link rel="apple-touch-icon" href="icons/icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Habits" />
+<style>
+  :root{
+    --bg: #14181f;
+    --surface: #1b212b;
+    --surface-2: #232b37;
+    --border: #2b3341;
+    --text: #e8e6df;
+    --text-muted: #8b93a1;
+    --text-faint: #565f6d;
+    --accent-sage: #8fa998;
+    --accent-sage-dim: rgba(143,169,152,0.22);
+    --accent-amber: #d9a566;
+    --danger: #c97064;
+    --radius-sm: 6px;
+    --radius-md: 10px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .serif {
+    font-family: Georgia, "Iowan Old Style", "Palatino Linotype", serif;
+  }
+
+  #app {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 40px 24px 80px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 28px;
+  }
+
+  .header h1 {
+    font-size: 30px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+    margin: 0 0 4px 0;
+  }
+
+  .header .date {
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+
+  .btn {
+    appearance: none;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 14px;
+    padding: 10px 16px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    white-space: nowrap;
+  }
+  .btn:hover { border-color: var(--accent-sage); }
+  .btn:focus-visible { outline: 2px solid var(--accent-sage); outline-offset: 2px; }
+
+  .btn-primary {
+    background: var(--accent-sage);
+    color: #14181f;
+    border-color: var(--accent-sage);
+    font-weight: 600;
+  }
+  .btn-primary:hover { filter: brightness(1.08); }
+
+  .btn-text {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    padding: 6px 8px;
+  }
+  .btn-text:hover { color: var(--text); border: none; }
+
+  /* Summary strip */
+  .summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    padding: 14px 0 20px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 24px;
+    font-size: 14px;
+    color: var(--text-muted);
+  }
+  .summary strong {
+    color: var(--text);
+    font-weight: 600;
+  }
+  .summary .amber { color: var(--accent-amber); }
+
+  /* Habit list */
+  .habit-list { display: flex; flex-direction: column; }
+
+  .habit-row {
+    padding: 18px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .habit-row:last-child { border-bottom: none; }
+
+  .habit-top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .habit-name-wrap { flex: 1; min-width: 0; }
+
+  .habit-name {
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .habit-freq {
+    font-size: 12.5px;
+    color: var(--text-faint);
+    margin-top: 2px;
+  }
+
+  .streak-badge {
+    font-size: 13px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  .streak-badge .n { color: var(--accent-amber); font-weight: 700; }
+
+  .check-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    flex-shrink: 0;
+    transition: all 0.15s ease;
+  }
+  .check-btn:hover { border-color: var(--accent-sage); }
+  .check-btn.done {
+    background: var(--accent-sage);
+    border-color: var(--accent-sage);
+    color: #14181f;
+  }
+  .check-btn.dim { opacity: 0.35; cursor: default; }
+
+  .row-menu-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-faint);
+    cursor: pointer;
+    font-size: 16px;
+    padding: 4px 6px;
+  }
+  .row-menu-btn:hover { color: var(--text); }
+
+  /* Heatmap */
+  .heatmap-wrap {
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+  .heatmap {
+    display: grid;
+    grid-auto-flow: column;
+    grid-template-rows: repeat(7, 11px);
+    gap: 3px;
+    width: max-content;
+  }
+  .cell {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+  }
+  .cell.scheduled { border-color: var(--text-faint); }
+  .cell.today { box-shadow: 0 0 0 1px var(--accent-amber); }
+  .cell.has-photo { box-shadow: inset 0 0 0 1px var(--accent-amber); cursor: pointer; }
+
+  /* Photo proof */
+  .photo-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1.5px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .photo-btn:hover { border-color: var(--accent-amber); color: var(--text); }
+
+  .thumb {
+    width: 34px;
+    height: 34px;
+    border-radius: var(--radius-sm);
+    object-fit: cover;
+    cursor: pointer;
+    border: 1.5px solid var(--accent-amber);
+    flex-shrink: 0;
+    display: block;
+  }
+
+  .lightbox {
+    max-width: 88vw;
+    max-height: 78vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+  }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 62vh;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border);
+  }
+  .lightbox-caption {
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .lightbox-actions { display: flex; gap: 10px; }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+  }
+  .empty p { max-width: 340px; margin: 8px auto 20px; line-height: 1.5; font-size: 14.5px; }
+
+  /* Modal */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,16,0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    z-index: 10;
+  }
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 24px;
+    width: 100%;
+    max-width: 380px;
+  }
+  .modal h2 { margin: 0 0 18px 0; font-size: 19px; font-weight: 600; }
+  .field { margin-bottom: 16px; }
+  .field label {
+    display: block;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .field input[type="text"], .field select {
+    width: 100%;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 9px 10px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-family: inherit;
+  }
+  .field input:focus, .field select:focus {
+    outline: none;
+    border-color: var(--accent-sage);
+  }
+
+  .color-row { display: flex; gap: 8px; }
+  .color-swatch {
+    width: 26px; height: 26px; border-radius: 50%;
+    cursor: pointer; border: 2px solid transparent;
+  }
+  .color-swatch.selected { border-color: var(--text); }
+
+  .weekday-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .weekday-chip {
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+  .weekday-chip.active {
+    background: var(--accent-sage-dim);
+    border-color: var(--accent-sage);
+    color: var(--text);
+  }
+
+  .stepper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .stepper button {
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    cursor: pointer;
+    font-size: 16px;
+  }
+
+  .modal-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 22px;
+  }
+  .modal-actions-right { display: flex; gap: 8px; }
+
+  .loading, .error-box {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--text-muted);
+    font-size: 14px;
+  }
+  .error-box { color: var(--danger); }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Loading your habits…</div></div>
+
+<script>
+(function () {
+  var STORAGE_KEY = 'habit-tracker-state-v1';
+  var COLORS = ['#8fa998', '#d9a566', '#7b93b0', '#c68a7c', '#9689b0', '#6fa8a0'];
+  var WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  var DB_NAME = 'habit-tracker-db';
+  var DB_VERSION = 1;
+  var PHOTO_STORE = 'photos';
+  var MAX_DIM = 1280; // px, longest side after compression
+  var JPEG_QUALITY = 0.72;
+
+  var state = { habits: [], checkins: {} }; // checkins[habitId] = { 'YYYY-MM-DD': true }
+  var photos = {}; // { 'habitId|YYYY-MM-DD': 'data:image/jpeg;base64,...' }
+  var modal = null; // { mode: 'add'|'edit', draft: {...} }
+  var lightbox = null; // { habitId, dateKey }
+  var ready = false;
+  var photosReady = false;
+
+  // ---------- date helpers ----------
+  function toKey(d) {
+    var y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), day = String(d.getDate()).padStart(2,'0');
+    return y + '-' + m + '-' + day;
+  }
+  function todayKey() { return toKey(new Date()); }
+  function addDays(d, n) { var r = new Date(d); r.setDate(r.getDate() + n); return r; }
+  function startOfWeek(d) { var r = new Date(d); var day = r.getDay(); return addDays(r, -day); }
+
+  function isScheduled(habit, date) {
+    if (habit.frequency.type === 'daily') return true;
+    if (habit.frequency.type === 'weekdays') return habit.frequency.days.indexOf(date.getDay()) !== -1;
+    if (habit.frequency.type === 'weekly') return true; // any day counts toward the weekly quota
+    return true;
+  }
+
+  function isDone(habit, dateKey) {
+    return !!(state.checkins[habit.id] && state.checkins[habit.id][dateKey]);
+  }
+
+  function photoKey(habitId, dateKey) { return habitId + '|' + dateKey; }
+  function getPhoto(habitId, dateKey) { return photos[photoKey(habitId, dateKey)]; }
+
+  // ---------- streak computation ----------
+  function computeStreak(habit) {
+    var today = new Date();
+    if (habit.frequency.type === 'weekly') {
+      // consecutive weeks meeting target, most recent first (current week is in-progress, counted if already met)
+      var target = habit.frequency.target;
+      var streak = 0;
+      var weekStart = startOfWeek(today);
+      var best = 0, running = 0;
+      // walk backward week by week
+      var w = weekStart;
+      var first = true;
+      while (true) {
+        var count = 0;
+        for (var i = 0; i < 7; i++) {
+          var d = addDays(w, i);
+          if (d > today) continue;
+          if (isDone(habit, toKey(d))) count++;
+        }
+        var met = count >= target;
+        if (first) {
+          // current week: only breaks streak if week is over (i.e. never for current week) — count if met so far
+          if (met) { streak++; } // else streak stays 0 for now, but don't break since week isn't done
+          first = false;
+        } else {
+          if (met) streak++; else break;
+        }
+        w = addDays(w, -7);
+        if (streak > 260) break; // safety cap (~5 years)
+        // stop scanning past habit creation
+        if (w < new Date(habit.createdAt)) break;
+      }
+      return streak;
+    } else {
+      // daily or weekdays: walk back from today (or yesterday if today not done/not required yet)
+      var streak = 0;
+      var cursor = new Date(today);
+      // if today is scheduled and not done, start checking from yesterday instead (don't break streak mid-day)
+      if (isScheduled(habit, cursor) && !isDone(habit, toKey(cursor))) {
+        cursor = addDays(cursor, -1);
+      }
+      while (cursor >= new Date(habit.createdAt) - 86400000) {
+        if (isScheduled(habit, cursor)) {
+          if (isDone(habit, toKey(cursor))) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        cursor = addDays(cursor, -1);
+        if (streak > 3650) break;
+      }
+      return streak;
+    }
+  }
+
+  function frequencyLabel(f) {
+    if (f.type === 'daily') return 'Every day';
+    if (f.type === 'weekdays') return f.days.map(function(d){return WEEKDAYS[d];}).join(', ');
+    if (f.type === 'weekly') return f.target + 'x per week';
+    return '';
+  }
+
+  // ---------- persistence ----------
+  // Everything is stored in localStorage, on-device, so the app works fully offline
+  // and never depends on a network connection.
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.error('Save failed', e);
+      alert('Could not save — your device storage may be full.');
+    }
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        if (parsed && parsed.habits) state = parsed;
+      }
+    } catch (e) { console.error('Load failed', e); }
+    ready = true;
+    render();
+  }
+
+  // ---------- photo persistence (IndexedDB) ----------
+  // Photos live in IndexedDB instead of localStorage: it's a real on-device
+  // database with a much larger quota (typically capped only by your phone's
+  // free space, not a fixed few-MB ceiling). Each photo is its own record, so
+  // saving one new photo never has to rewrite everything that came before it.
+  var dbPromise = null;
+  function openDB() {
+    if (dbPromise) return dbPromise;
+    dbPromise = new Promise(function(resolve, reject) {
+      if (!window.indexedDB) { reject(new Error('IndexedDB unavailable')); return; }
+      var req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = function() {
+        req.result.createObjectStore(PHOTO_STORE);
+      };
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+    return dbPromise;
+  }
+
+  function idbPut(key, value) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE, 'readwrite');
+        tx.objectStore(PHOTO_STORE).put(value, key);
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  }
+
+  function idbDelete(key) {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE, 'readwrite');
+        tx.objectStore(PHOTO_STORE).delete(key);
+        tx.oncomplete = function() { resolve(); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  }
+
+  function idbGetAll() {
+    return openDB().then(function(db) {
+      return new Promise(function(resolve, reject) {
+        var tx = db.transaction(PHOTO_STORE, 'readonly');
+        var store = tx.objectStore(PHOTO_STORE);
+        var keysReq = store.getAllKeys();
+        var valsReq = store.getAll();
+        tx.oncomplete = function() { resolve({ keys: keysReq.result, values: valsReq.result }); };
+        tx.onerror = function() { reject(tx.error); };
+      });
+    });
+  }
+
+  function loadPhotos() {
+    idbGetAll().then(function(res) {
+      var map = {};
+      for (var i = 0; i < res.keys.length; i++) map[res.keys[i]] = res.values[i];
+      photos = map;
+      photosReady = true;
+      render();
+    }).catch(function(e) {
+      console.error('Photo load failed', e);
+      photosReady = true;
+      render();
+    });
+  }
+
+  function savePhoto(key, dataUrl) {
+    idbPut(key, dataUrl).catch(function(e) {
+      console.error('Photo save failed', e);
+      alert('Could not save that photo. Your device storage may be full.');
+    });
+  }
+
+  // Downscale + compress an image file to a data URL before storing.
+  function compressImage(file, callback) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var img = new Image();
+      img.onload = function() {
+        var w = img.width, h = img.height;
+        var scale = Math.min(1, MAX_DIM / Math.max(w, h));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.round(w * scale);
+        canvas.height = Math.round(h * scale);
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        callback(canvas.toDataURL('image/jpeg', JPEG_QUALITY));
+      };
+      img.onerror = function() { callback(null); };
+      img.src = e.target.result;
+    };
+    reader.onerror = function() { callback(null); };
+    reader.readAsDataURL(file);
+  }
+
+  function attachPhoto(habitId, dateKey, file) {
+    compressImage(file, function(dataUrl) {
+      if (!dataUrl) { alert('Could not read that image.'); return; }
+      var key = photoKey(habitId, dateKey);
+      photos[key] = dataUrl;
+      savePhoto(key, dataUrl);
+      render();
+    });
+  }
+
+  function removePhoto(habitId, dateKey) {
+    var key = photoKey(habitId, dateKey);
+    delete photos[key];
+    idbDelete(key).catch(function(e) { console.error('Photo delete failed', e); });
+    lightbox = null;
+    render();
+  }
+
+  // ---------- mutations ----------
+  function addHabit(draft) {
+    var habit = {
+      id: 'h_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+      name: draft.name,
+      color: draft.color,
+      frequency: draft.frequency,
+      createdAt: new Date().toISOString(),
+      archived: false
+    };
+    state.habits.push(habit);
+    state.checkins[habit.id] = {};
+    save();
+  }
+
+  function updateHabit(id, draft) {
+    var h = state.habits.find(function(x){return x.id===id;});
+    if (!h) return;
+    h.name = draft.name;
+    h.color = draft.color;
+    h.frequency = draft.frequency;
+    save();
+  }
+
+  function archiveHabit(id) {
+    var h = state.habits.find(function(x){return x.id===id;});
+    if (h) h.archived = true;
+    save();
+  }
+
+  function toggleToday(id) {
+    var key = todayKey();
+    if (!state.checkins[id]) state.checkins[id] = {};
+    if (state.checkins[id][key]) {
+      delete state.checkins[id][key];
+    } else {
+      state.checkins[id][key] = true;
+    }
+    save();
+  }
+
+  // ---------- rendering ----------
+  function el(tag, attrs, children) {
+    var e = document.createElement(tag);
+    if (attrs) Object.keys(attrs).forEach(function(k) {
+      if (k === 'class') e.className = attrs[k];
+      else if (k === 'text') e.textContent = attrs[k];
+      else if (k.indexOf('on') === 0) e.addEventListener(k.slice(2).toLowerCase(), attrs[k]);
+      else e.setAttribute(k, attrs[k]);
+    });
+    (children || []).forEach(function(c) { if (c) e.appendChild(c); });
+    return e;
+  }
+
+  function renderHeatmap(habit) {
+    var weeks = 12;
+    var days = weeks * 7;
+    var today = new Date();
+    var start = addDays(startOfWeek(today), -(weeks-1)*7);
+    var wrap = el('div', { class: 'heatmap-wrap' });
+    var grid = el('div', { class: 'heatmap' });
+    for (var i = 0; i < days; i++) {
+      var d = addDays(start, i);
+      if (d > today) {
+        grid.appendChild(el('div', { class: 'cell', style: 'visibility:hidden' }));
+        continue;
+      }
+      var key = toKey(d);
+      var scheduled = isScheduled(habit, d);
+      var done = isDone(habit, key);
+      var hasPhoto = !!getPhoto(habit.id, key);
+      var cls = 'cell' + (scheduled ? ' scheduled' : '') + (key === todayKey() ? ' today' : '') + (hasPhoto ? ' has-photo' : '');
+      var title = key + (done ? ' — done' : '') + (hasPhoto ? ' — photo attached' : '');
+      var cell = el('div', { class: cls, title: title });
+      if (done) cell.style.background = habit.color;
+      if (hasPhoto) cell.addEventListener('click', function(hid, dk) {
+        return function() { lightbox = { habitId: hid, dateKey: dk }; render(); };
+      }(habit.id, key));
+      grid.appendChild(cell);
+    }
+    wrap.appendChild(grid);
+    return wrap;
+  }
+
+  function renderHabitRow(habit) {
+    var streak = computeStreak(habit);
+    var best = computeBestStreakApprox(habit);
+    var doneToday = isDone(habit, todayKey());
+    var scheduledToday = isScheduled(habit, new Date());
+
+    var row = el('div', { class: 'habit-row' });
+
+    var checkBtn = el('button', {
+      class: 'check-btn' + (doneToday ? ' done' : '') + (!scheduledToday ? ' dim' : ''),
+      text: doneToday ? '✓' : '',
+      title: scheduledToday ? (doneToday ? 'Mark not done' : 'Mark done') : 'Not scheduled today',
+      onclick: function() { if (scheduledToday || doneToday) { toggleToday(habit.id); render(); } }
+    });
+
+    var menuBtn = el('button', { class: 'row-menu-btn', text: '⋯', title: 'Edit or archive', onclick: function() {
+      openModal('edit', habit);
+    }});
+
+    var todayPhoto = getPhoto(habit.id, todayKey());
+    var photoEl;
+    if (todayPhoto) {
+      photoEl = el('img', { class: 'thumb', src: todayPhoto, title: "Today's photo — tap to view" });
+      photoEl.addEventListener('click', function() { lightbox = { habitId: habit.id, dateKey: todayKey() }; render(); });
+    } else {
+      photoEl = el('button', { class: 'photo-btn', text: '📷', title: 'Add a photo for today', onclick: function() {
+        triggerPhotoPicker(habit.id, todayKey());
+      }});
+    }
+
+    var top = el('div', { class: 'habit-top' }, [
+      el('span', { class: 'dot', style: 'background:' + habit.color }),
+      el('div', { class: 'habit-name-wrap' }, [
+        el('div', { class: 'habit-name', text: habit.name }),
+        el('div', { class: 'habit-freq', text: frequencyLabel(habit.frequency) })
+      ]),
+      el('div', { class: 'streak-badge' }, [
+        document.createTextNode(''),
+        (function(){
+          var s = document.createElement('span');
+          s.innerHTML = (streak > 0 ? '<span class="n">' + streak + '</span> streak' : 'no streak yet');
+          return s;
+        })()
+      ]),
+      photoEl,
+      checkBtn,
+      menuBtn
+    ]);
+
+    row.appendChild(top);
+    row.appendChild(renderHeatmap(habit));
+    return row;
+  }
+
+  function computeBestStreakApprox(habit) {
+    // lightweight best-streak scan over checkin history for daily/weekdays types
+    if (habit.frequency.type === 'weekly') return null;
+    var keys = Object.keys(state.checkins[habit.id] || {}).sort();
+    if (!keys.length) return 0;
+    var best = 0, running = 0;
+    var cursor = new Date(habit.createdAt);
+    var today = new Date();
+    while (cursor <= today) {
+      if (isScheduled(habit, cursor)) {
+        if (isDone(habit, toKey(cursor))) { running++; best = Math.max(best, running); }
+        else running = 0;
+      }
+      cursor = addDays(cursor, 1);
+    }
+    return best;
+  }
+
+  function renderSummary(activeHabits) {
+    var today = new Date();
+    var scheduledToday = activeHabits.filter(function(h){ return isScheduled(h, today); });
+    var doneToday = scheduledToday.filter(function(h){ return isDone(h, todayKey()); });
+    var bestStreak = 0;
+    activeHabits.forEach(function(h){ bestStreak = Math.max(bestStreak, computeStreak(h)); });
+
+    var strip = el('div', { class: 'summary' });
+    var p1 = document.createElement('div');
+    p1.innerHTML = '<strong>' + doneToday.length + ' of ' + scheduledToday.length + '</strong> done today';
+    strip.appendChild(p1);
+    if (bestStreak > 0) {
+      var p2 = document.createElement('div');
+      p2.innerHTML = 'best streak running: <strong class="amber">' + bestStreak + ' days</strong>';
+      strip.appendChild(p2);
+    }
+    return strip;
+  }
+
+  function render() {
+    var app = document.getElementById('app');
+    app.innerHTML = '';
+
+    if (!ready || !photosReady) {
+      app.appendChild(el('div', { class: 'loading', text: 'Loading your habits…' }));
+      return;
+    }
+
+    var header = el('div', { class: 'header' }, [
+      el('div', {}, [
+        el('h1', { class: 'serif', text: 'Habit Tracker' }),
+        el('div', { class: 'date', text: new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }) })
+      ]),
+      el('button', { class: 'btn btn-primary', text: '+ New habit', onclick: function(){ openModal('add', null); } })
+    ]);
+    app.appendChild(header);
+
+    var activeHabits = state.habits.filter(function(h){ return !h.archived; });
+
+    if (activeHabits.length === 0) {
+      app.appendChild(el('div', { class: 'empty' }, [
+        el('div', { style: 'font-size:32px' , text: '○'}),
+        el('p', { text: 'No habits yet. Start with one small thing you want to stick to — you can always add more later.' }),
+        el('button', { class: 'btn btn-primary', text: '+ Add your first habit', onclick: function(){ openModal('add', null); } })
+      ]));
+    } else {
+      app.appendChild(renderSummary(activeHabits));
+      var list = el('div', { class: 'habit-list' });
+      activeHabits.forEach(function(h) { list.appendChild(renderHabitRow(h)); });
+      app.appendChild(list);
+    }
+
+    if (modal) app.appendChild(renderModal());
+    if (lightbox) app.appendChild(renderLightbox());
+  }
+
+  // ---------- photo picker ----------
+  var pendingPhoto = null; // { habitId, dateKey }
+  var fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = 'image/*';
+  fileInput.setAttribute('capture', 'environment'); // opens camera on iOS/Android where supported
+  fileInput.style.display = 'none';
+  fileInput.addEventListener('change', function(e) {
+    var file = e.target.files && e.target.files[0];
+    fileInput.value = '';
+    if (file && pendingPhoto) attachPhoto(pendingPhoto.habitId, pendingPhoto.dateKey, file);
+  });
+  document.body.appendChild(fileInput);
+
+  function triggerPhotoPicker(habitId, dateKey) {
+    pendingPhoto = { habitId: habitId, dateKey: dateKey };
+    fileInput.click();
+  }
+
+  // ---------- lightbox ----------
+  function renderLightbox() {
+    var img = getPhoto(lightbox.habitId, lightbox.dateKey);
+    var habit = state.habits.find(function(h){ return h.id === lightbox.habitId; });
+    var box = el('div', { class: 'lightbox' }, [
+      el('img', { src: img }),
+      el('div', { class: 'lightbox-caption', text: (habit ? habit.name : '') + ' — ' + lightbox.dateKey }),
+      el('div', { class: 'lightbox-actions' }, [
+        el('button', { class: 'btn', text: 'Close', onclick: function(){ lightbox = null; render(); } }),
+        el('button', { class: 'btn', text: 'Remove photo', onclick: function(){ removePhoto(lightbox.habitId, lightbox.dateKey); } })
+      ])
+    ]);
+    var overlay = el('div', { class: 'overlay', onclick: function(e){ if (e.target === overlay) { lightbox = null; render(); } } }, [box]);
+    return overlay;
+  }
+
+  // ---------- modal ----------
+  function openModal(mode, habit) {
+    var draft;
+    if (mode === 'edit' && habit) {
+      draft = { id: habit.id, name: habit.name, color: habit.color, frequency: JSON.parse(JSON.stringify(habit.frequency)) };
+    } else {
+      draft = { id: null, name: '', color: COLORS[0], frequency: { type: 'daily' } };
+    }
+    modal = { mode: mode, draft: draft };
+    render();
+  }
+
+  function closeModal() { modal = null; render(); }
+
+  function renderModal() {
+    var draft = modal.draft;
+
+    var nameInput = el('input', { type: 'text', value: draft.name, placeholder: 'e.g. Read 10 pages' });
+    nameInput.value = draft.name;
+    nameInput.addEventListener('input', function(e){ draft.name = e.target.value; });
+
+    var colorRow = el('div', { class: 'color-row' });
+    COLORS.forEach(function(c) {
+      var sw = el('div', {
+        class: 'color-swatch' + (draft.color === c ? ' selected' : ''),
+        style: 'background:' + c,
+        onclick: function() { draft.color = c; render(); }
+      });
+      colorRow.appendChild(sw);
+    });
+
+    var freqSelect = el('select', {}, []);
+    [['daily','Every day'],['weekdays','Specific days'],['weekly','X times per week']].forEach(function(opt) {
+      var o = el('option', { value: opt[0], text: opt[1] });
+      if (draft.frequency.type === opt[0]) o.selected = true;
+      freqSelect.appendChild(o);
+    });
+    freqSelect.addEventListener('change', function(e) {
+      var t = e.target.value;
+      if (t === 'daily') draft.frequency = { type: 'daily' };
+      else if (t === 'weekdays') draft.frequency = { type: 'weekdays', days: draft.frequency.days || [1,2,3,4,5] };
+      else draft.frequency = { type: 'weekly', target: draft.frequency.target || 3 };
+      render();
+    });
+
+    var freqDetail = null;
+    if (draft.frequency.type === 'weekdays') {
+      freqDetail = el('div', { class: 'weekday-row' });
+      WEEKDAYS.forEach(function(label, idx) {
+        var active = draft.frequency.days.indexOf(idx) !== -1;
+        var chip = el('div', {
+          class: 'weekday-chip' + (active ? ' active' : ''),
+          text: label,
+          onclick: function() {
+            var days = draft.frequency.days;
+            var pos = days.indexOf(idx);
+            if (pos === -1) days.push(idx); else days.splice(pos,1);
+            render();
+          }
+        });
+        freqDetail.appendChild(chip);
+      });
+    } else if (draft.frequency.type === 'weekly') {
+      var target = draft.frequency.target;
+      freqDetail = el('div', { class: 'stepper' }, [
+        el('button', { text: '−', onclick: function(){ if (draft.frequency.target > 1) { draft.frequency.target--; render(); } } }),
+        el('span', { text: draft.frequency.target + ' days a week' }),
+        el('button', { text: '+', onclick: function(){ if (draft.frequency.target < 7) { draft.frequency.target++; render(); } } })
+      ]);
+    }
+
+    var fields = [
+      el('div', { class: 'field' }, [ el('label', { text: 'Habit name' }), nameInput ]),
+      el('div', { class: 'field' }, [ el('label', { text: 'Color' }), colorRow ]),
+      el('div', { class: 'field' }, [ el('label', { text: 'Frequency' }), freqSelect ])
+    ];
+    if (freqDetail) fields.push(el('div', { class: 'field' }, [ el('label', { text: '\u00A0' }), freqDetail ]));
+
+    var saveBtn = el('button', {
+      class: 'btn btn-primary',
+      text: modal.mode === 'add' ? 'Add habit' : 'Save changes',
+      onclick: function() {
+        if (!draft.name.trim()) { nameInput.focus(); return; }
+        if (draft.frequency.type === 'weekdays' && draft.frequency.days.length === 0) return;
+        if (modal.mode === 'add') addHabit(draft); else updateHabit(draft.id, draft);
+        closeModal();
+      }
+    });
+    var cancelBtn = el('button', { class: 'btn', text: 'Cancel', onclick: closeModal });
+
+    var actionsRight = el('div', { class: 'modal-actions-right' }, [cancelBtn, saveBtn]);
+    var actions = el('div', { class: 'modal-actions' }, [
+      modal.mode === 'edit'
+        ? el('button', { class: 'btn-text', text: 'Archive', onclick: function() { archiveHabit(draft.id); closeModal(); } })
+        : el('span', {}),
+      actionsRight
+    ]);
+
+    var modalBox = el('div', { class: 'modal' }, [
+      el('h2', { text: modal.mode === 'add' ? 'New habit' : 'Edit habit' })
+    ].concat(fields).concat([actions]));
+
+    var overlay = el('div', { class: 'overlay', onclick: function(e){ if (e.target === overlay) closeModal(); } }, [modalBox]);
+    return overlay;
+  }
+
+  // ---------- init ----------
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persist().catch(function() {}); // best-effort; ignored where unsupported
+  }
+  if (!window.localStorage) {
+    document.getElementById('app').innerHTML = '<div class="error-box">This browser does not support on-device storage.</div>';
+  } else {
+    load();
+    loadPhotos();
+  }
+})();
+
+// Register the service worker so the app shell is cached and works offline
+// after the first successful load.
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('service-worker.js').catch(function(e) {
+      console.error('Service worker registration failed', e);
+    });
+  });
+}
+</script>
+</body>
+</html>
