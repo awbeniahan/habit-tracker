@@ -36,7 +36,13 @@ html, body {
   -webkit-text-size-adjust: 100%;
 }
 
-button { font: inherit; color: inherit; }
+button {
+  font: inherit;
+  color: inherit;
+  transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, opacity 0.15s ease;
+}
+button:active { transform: scale(0.97); }
+[hidden] { display: none !important; }
 button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 
 #app {
@@ -608,3 +614,55 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .stat-habit .stat-grid { margin-bottom: 0; }
 .stat-habit .stat { background: rgba(0, 0, 0, 0.22); }
 .stat-habit .hint { margin-top: 10px; }
+
+/* ---------- Fixes round 1: line icons, status control, motion, scrolling ---------- */
+.tile svg { width: 52%; height: 52%; display: block; }
+.chip .ico { margin-right: -1px; }
+.info:active { transform: none; opacity: 0.7; }
+.cell { transition: transform 0.12s ease; }
+.cell.tap:active { transform: scale(0.8); }
+
+/* Segmented controls: day status and icon type */
+.segmented { display: flex; gap: 4px; padding: 4px; margin-bottom: 16px; border-radius: 14px; background: var(--card-2); border: 1px solid var(--line); }
+.seg { flex: 1; min-height: 42px; padding: 0 8px; border: 0; border-radius: 10px; background: transparent; color: var(--text-2); font-size: 14px; font-weight: 600; cursor: pointer; }
+.seg.on { background: rgba(255, 255, 255, 0.14); color: var(--text); }
+.seg-done.on { background: var(--c); color: #0c0e12; }
+.picker-tabs { margin: 0 0 12px; }
+
+/* Icon picker */
+.icon-list { max-height: 250px; overflow-y: auto; overscroll-behavior: contain; margin-top: 10px; padding-right: 2px; }
+.icon-group { margin-bottom: 10px; }
+.icon-group-title { margin: 8px 0 8px 2px; font-size: 12.5px; font-weight: 600; color: var(--text-3); }
+.icon-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.pick-btn {
+  aspect-ratio: 1;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--card-2);
+  color: var(--text-2);
+  cursor: pointer;
+}
+.pick-btn.selected { border-color: var(--text); background: rgba(255, 255, 255, 0.14); color: var(--text); }
+
+.badge-row { display: flex; flex-wrap: wrap; gap: 8px 14px; }
+.badge-item { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text-2); }
+
+/* Motion: every change gives a little feedback. All of it switches off with "Reduce Motion". */
+@keyframes pop { 0% { transform: scale(0.8); } 55% { transform: scale(1.12); } 100% { transform: scale(1); } }
+.check-btn.pop, .cell.pop { animation: pop 0.28s ease-out; }
+@keyframes fade-up { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.list.swap { animation: fade-up 0.22s ease-out; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes sheet-down { from { transform: none; opacity: 1; } to { transform: translateY(28px); opacity: 0; } }
+.overlay.enter { animation: fade-in 0.18s ease-out; }
+.overlay.leaving { animation: fade-out 0.17s ease-in forwards; pointer-events: none; }
+.overlay.leaving .modal { animation: sheet-down 0.17s ease-in forwards; }
+
+/* Scrolling inside a sheet must never scroll the page behind it */
+.overlay, .modal { overscroll-behavior: contain; }
+.modal { -webkit-overflow-scrolling: touch; }

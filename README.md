@@ -8,9 +8,9 @@ A dark, minimalist habit tracker that works fully offline on your phone. Every h
 
 - **Heat map cards** for every habit, one color each, with today outlined. Choose the range for all habits: 4 weeks, 12 weeks, 6 months, 1 year, or a custom number of weeks.
 - **Three views:** heat map cards, checklist, compact list.
-- **Custom categories** with an emoji or an uploaded photo as the icon. Filter by category with chips.
+- **Custom categories** with a line icon, an emoji or an uploaded photo as the icon. Filter by category with chips.
 - **Streak badges** that level up at 1, 3, 7, 30, 100 and 365 days.
-- **Photo proof:** take a photo when you check a habit off. A habit can *require* a photo to count. Photos get the date and time burned in.
+- **Photo proof:** take a photo when you check a habit off. A habit can *require* a photo to count. Photos can be taken or picked from the library, and get the date and time they were added burned in.
 - **Day view:** tap any heat map cell to see or edit that day: check-in, photo, note, or mark a rest day. Only the last 7 days can be edited.
 - **Rest days** keep a streak alive without counting as a check-in.
 - **Photo gallery** per habit, and a **stats screen** (streak, best streak, 30-day rate, most missed weekday).
@@ -22,6 +22,7 @@ A dark, minimalist habit tracker that works fully offline on your phone. Every h
 |---|---|
 | `index.html` | The page shell: a single `#app` element, loads the CSS and JS. |
 | `style.css` | The theme. Each habit sets two CSS variables (`--c`, `--c-rgb`) so one set of rules colors everything per habit. |
+| `icons.js` | The line icons for the picker, taken from [Lucide](https://lucide.dev) (ISC license). |
 | `app.js` | All the logic, plain JavaScript with no libraries. State changes, then `render()` rebuilds the screen. |
 | `service-worker.js` | Caches the app files so it opens offline. Bump `CACHE_NAME` on every release. |
 | `manifest.json` | Lets the app be installed to the home screen. |

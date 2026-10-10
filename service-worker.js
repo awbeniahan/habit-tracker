@@ -1,9 +1,10 @@
 // Bump this version string on EVERY release so devices pick up the update.
-var CACHE_NAME = 'habit-tracker-v5';
+var CACHE_NAME = 'habit-tracker-v6';
 var ASSETS = [
   './',
   './index.html',
   './style.css',
+  './icons.js',
   './app.js',
   './manifest.json',
   './icons/icon-180.png',

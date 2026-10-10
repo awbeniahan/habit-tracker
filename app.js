@@ -16,14 +16,11 @@
   var RANGE_PRESETS = [['4 weeks', 4], ['12 weeks', 12], ['6 months', 26], ['1 year', 52]];
   var ICON_PX = 96;                             // uploaded icon photos are cropped square and shrunk to this size
 
-  // Streak badges, checked from the biggest down. Weekly habits count weeks, so they use weeks x 7.
+  // Streak badges, checked from the biggest down (icon = a Lucide icon name from icons.js).
+  // Weekly habits count weeks, so they use weeks x 7.
   var MILESTONES = [
-    { days: 365, icon: '\uD83C\uDFC6' }, // trophy
-    { days: 100, icon: '\uD83D\uDC51' }, // crown
-    { days: 30,  icon: '\uD83D\uDC8E' }, // gem
-    { days: 7,   icon: '\u26A1' },        // bolt
-    { days: 3,   icon: '\uD83D\uDD25' }, // fire
-    { days: 1,   icon: '\uD83C\uDF31' }  // seedling
+    { days: 365, icon: 'trophy' }, { days: 100, icon: 'crown' }, { days: 30, icon: 'gem' },
+    { days: 7, icon: 'zap' }, { days: 3, icon: 'flame' }, { days: 1, icon: 'sprout' }
   ];
 
   var EMOJIS = ['\uD83D\uDCDA','\u270F\uFE0F','\uD83D\uDCBB','\uD83C\uDFAF','\uD83D\uDCAA','\uD83C\uDFC3','\uD83D\uDEB4','\uD83E\uDDD8',
@@ -54,6 +51,9 @@
   var state = { habits: [], checkins: {}, categories: [], settings: { heatmapWeeks: DEFAULT_WEEKS }, notes: {}, rest: {} }; // checkins[habitId] = { 'YYYY-MM-DD': true }
   var photos = {}; // { 'habitId|YYYY-MM-DD': 'data:image/jpeg;base64,...' }
   var view = 'cards'; // 'cards' | 'checklist' | 'compact'
+  var fx = { pop: null, swap: false }; // one-shot animation flags, cleared after each render
+  var shownPct = 0; // progress bar width last drawn, so it can animate to the new value
+  var scrollLocked = false, lockedY = 0;
   var filter = 'all'; // 'all' | a category id | 'none' (uncategorized)
   var modal = null; // { kind: 'habit'|'category'|'settings'|'day'|'gallery'|'stats', mode: 'add'|'edit', draft: {...}, returnTo?: 'settings' }
   var ready = false;
@@ -174,14 +174,23 @@
   // Emoji the user picked, or the first letter of the name
   function habitIcon(habit) {
     var icon = (habit.icon || '').trim();
-    if (icon) return icon;
+    if (icon && icon.indexOf('i:') !== 0) return icon; // 'i:name' means a line icon, handled in tileEl
     var first = Array.from(habit.name || '?')[0] || '?';
     return first.toUpperCase();
   }
-  // Square icon for a habit or category: uploaded photo if there is one, else emoji/letter
+  // Line icons live in icons.js (Lucide). A habit stores one as 'i:name', e.g. 'i:dumbbell'.
+  function lucideSvg(name, size) {
+    var inner = (window.HT_ICONS || {})[name];
+    if (!inner) return '';
+    return '<svg viewBox="0 0 24 24" width="' + size + '" height="' + size + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + inner + '</svg>';
+  }
+
+  // Square icon for a habit or category: uploaded photo, else line icon, else emoji/letter
   function tileEl(item, extraClass) {
     var t = el('span', { class: 'tile' + (extraClass ? ' ' + extraClass : '') });
+    var iconName = (item.icon || '').indexOf('i:') === 0 ? item.icon.slice(2) : '';
     if (item.iconImage) t.appendChild(el('img', { src: item.iconImage, alt: '' }));
+    else if (iconName && lucideSvg(iconName, 24)) t.innerHTML = lucideSvg(iconName, 24); // fixed strings from icons.js, not user input
     else t.textContent = habitIcon(item);
     return t;
   }
@@ -248,12 +257,14 @@
 
   function setFilter(f) {
     filter = f;
+    fx.swap = true;
     try { localStorage.setItem(FILTER_KEY, f); } catch (e) {}
     render();
   }
 
   function setView(v) {
     view = v;
+    fx.swap = true;
     try { localStorage.setItem(VIEW_KEY, v); } catch (e) {}
     render();
   }
@@ -334,8 +345,8 @@
     });
   }
 
-  // Burn the moment the photo was taken into its bottom-left corner. It is the capture
-  // time, so a photo added later for a past day shows when it was really taken.
+  // Burn the time the photo was added into its bottom-left corner. A photo added later for a
+  // past day (or picked from the library) shows when it was added here, not when it was shot.
   function stampTime(ctx, w, h) {
     var text = new Date().toLocaleString(undefined, { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' });
     var size = Math.max(14, Math.round(w / 40));
@@ -467,6 +478,7 @@
     if (!state.checkins[id]) state.checkins[id] = {};
     if (val) {
       state.checkins[id][key] = true;
+      fx.pop = id;
       if (state.rest[id]) delete state.rest[id][key]; // a day is either done or a rest day
     } else {
       delete state.checkins[id][key];
@@ -530,12 +542,15 @@
       var need = info.weekly ? Math.ceil(info.next.days / 7) : info.next.days;
       title += '. Next badge at ' + need + ' ' + unit + 's.';
     }
-    return el('span', {
-      class: 'chip',
-      title: title,
-      'aria-label': title,
-      text: (info.tier ? info.tier.icon + ' ' : '') + streak + (info.weekly ? 'w' : 'd')
-    });
+    var chip = el('span', { class: 'chip', title: title, 'aria-label': title });
+    if (info.tier) {
+      var badge = document.createElement('span');
+      badge.className = 'ico';
+      badge.innerHTML = lucideSvg(info.tier.icon, 14);
+      chip.appendChild(badge);
+    }
+    chip.appendChild(document.createTextNode(streak + (info.weekly ? 'w' : 'd')));
+    return chip;
   }
 
   function makeCheckBtn(habit) {
@@ -544,7 +559,7 @@
     var available = isScheduled(habit, new Date()) && !restToday;
     var label = restToday ? 'Rest day' : !available && !doneToday ? 'Not scheduled today' : (doneToday ? 'Mark not done' : 'Mark done');
     var btn = el('button', {
-      class: 'check-btn' + (doneToday ? ' done' : '') + (!available && !doneToday ? ' dim' : ''),
+      class: 'check-btn' + (doneToday ? ' done' : '') + (doneToday && fx.pop === habit.id ? ' pop' : '') + (!available && !doneToday ? ' dim' : ''),
       'aria-label': habit.name + ': ' + label,
       'aria-pressed': doneToday ? 'true' : 'false',
       onclick: function() { if (available || doneToday) handleCheck(habit, todayKey()); }
@@ -649,7 +664,7 @@
       var scheduled = isScheduled(habit, d);
       var done = isDone(habit, key);
       var hasPhoto = !!getPhoto(habit.id, key);
-      var cls = 'cell tap' + (!scheduled ? ' off' : '') + (done ? ' done' : '') + (isRest(habit, key) ? ' rest' : '') + (key === todayKey() ? ' today' : '') + (hasPhoto ? ' has-photo' : '');
+      var cls = 'cell tap' + (!scheduled ? ' off' : '') + (done ? ' done' : '') + (isRest(habit, key) ? ' rest' : '') + (key === todayKey() ? ' today' : '') + (done && key === todayKey() && fx.pop === habit.id ? ' pop' : '') + (hasPhoto ? ' has-photo' : '');
       var title = key + (done ? ' — done' : '') + (isRest(habit, key) ? ' — rest day' : '') + (hasPhoto ? ' — photo attached' : '');
       var cell = el('div', { class: cls, title: title });
       cell.addEventListener('click', function(hid, dk) {
@@ -696,7 +711,7 @@
   }
 
   function renderList(activeHabits) {
-    var list = el('div', { class: 'list list-' + view });
+    var list = el('div', { class: 'list list-' + view + (fx.swap ? ' swap' : '') });
     if (view === 'cards') {
       activeHabits.forEach(function(h) { list.appendChild(renderCard(h)); });
       return list;
@@ -769,6 +784,15 @@
     return row;
   }
 
+  // The bar starts at its old width and grows to the new one, because the whole screen is
+  // rebuilt on every change and a rebuilt element would otherwise just appear at the new width.
+  function makeBarFill(pct) {
+    var fill = el('span', { style: 'width:' + shownPct + '%' });
+    shownPct = pct;
+    requestAnimationFrame(function() { requestAnimationFrame(function() { fill.style.width = pct + '%'; }); });
+    return fill;
+  }
+
   function renderProgress(activeHabits) {
     var today = new Date();
     var scheduledToday = activeHabits.filter(function(h){ return isScheduled(h, today) && !isRest(h, todayKey()); });
@@ -783,7 +807,7 @@
     }
     return el('div', { class: 'progress' }, [
       text,
-      el('div', { class: 'bar' }, [ el('span', { style: 'width:' + pct + '%' }) ])
+      el('div', { class: 'bar' }, [ makeBarFill(pct) ])
     ]);
   }
 
@@ -801,8 +825,28 @@
     return pill;
   }
 
+  // While a sheet is open the page behind it must not scroll. Fixing the body in place (and
+  // remembering where it was) is the reliable way to do that on iPhone.
+  function syncScrollLock(y) {
+    var style = document.body.style;
+    if (modal && !scrollLocked) {
+      lockedY = y;
+      style.position = 'fixed'; style.top = (-y) + 'px'; style.left = '0'; style.right = '0';
+      scrollLocked = true;
+    } else if (!modal && scrollLocked) {
+      style.position = ''; style.top = ''; style.left = ''; style.right = '';
+      scrollLocked = false;
+      window.scrollTo(0, lockedY);
+    }
+  }
+
   function render() {
     var app = document.getElementById('app');
+    // The screen is rebuilt on every change, so remember scroll positions and put them back
+    var oldSheet = app.querySelector('.modal');
+    var sheetTop = oldSheet ? oldSheet.scrollTop : 0;
+    var keepSheetScroll = !!(modal && modal.shown); // a freshly opened sheet starts at the top
+    var pageY = scrollLocked ? lockedY : window.pageYOffset;
     app.innerHTML = '';
 
     if (!ready || !photosReady) {
@@ -845,6 +889,12 @@
     // Long heat maps scroll sideways; start them scrolled to today (the right edge)
     var wraps = app.querySelectorAll('.heatmap-wrap.scrolls');
     for (var k = 0; k < wraps.length; k++) wraps[k].scrollLeft = wraps[k].scrollWidth;
+
+    var newSheet = app.querySelector('.modal');
+    if (newSheet && keepSheetScroll) newSheet.scrollTop = sheetTop;
+    syncScrollLock(pageY);
+    if (!scrollLocked) window.scrollTo(0, pageY);
+    fx.pop = null; fx.swap = false;
   }
 
   // ---------- photo picker ----------
@@ -852,19 +902,16 @@
   var fileInput = document.createElement('input');
   fileInput.type = 'file';
   fileInput.accept = 'image/*';
-  fileInput.setAttribute('capture', 'environment'); // opens camera on iOS/Android where supported
+  // No 'capture' attribute on purpose: iPhone then offers Take Photo, Photo Library or Choose File.
   fileInput.style.display = 'none';
   fileInput.addEventListener('change', function(e) {
     var file = e.target.files && e.target.files[0];
     fileInput.value = '';
     if (file && pendingPhoto) attachPhoto(pendingPhoto.habitId, pendingPhoto.dateKey, file, pendingPhoto.markDone);
   });
-  // Browsers cannot tell us "camera blocked", but they do tell us when the picker was closed
-  // with no photo. We can at least explain what happened and where to fix it.
+  // The picker tells us when it was closed without a photo, so we can say what happened.
   fileInput.addEventListener('cancel', function() {
-    showToast(pendingPhoto && pendingPhoto.markDone
-      ? 'No photo, so this habit was not checked. If the camera will not open, allow Camera for this app in iPhone Settings.'
-      : 'No photo added. If the camera will not open, allow Camera for this app in iPhone Settings.');
+    showToast(pendingPhoto && pendingPhoto.markDone ? 'No photo added, so this habit was not checked.' : 'No photo added.');
   });
   document.body.appendChild(fileInput);
 
@@ -917,7 +964,18 @@
 
   function openSettings() { modal = { kind: 'settings', customOpen: false }; render(); }
 
+  // The sheet slides away first, then the app state changes
   function closeModal() {
+    var overlay = document.querySelector('.overlay');
+    if (overlay && !overlay.classList.contains('leaving')) {
+      overlay.classList.add('leaving');
+      setTimeout(finishClose, 170);
+      return;
+    }
+    finishClose();
+  }
+
+  function finishClose() {
     var back = modal && modal.returnTo;
     if (back === 'settings') modal = { kind: 'settings', customOpen: false };
     else if (back === 'gallery') modal = { kind: 'gallery', habitId: modal.habitId };
@@ -972,6 +1030,8 @@
   }
 
   function renderIconPicker(draft, color) {
+    var hasEmoji = draft.icon && draft.icon.indexOf('i:') !== 0;
+    var tab = modal.iconTab || (hasEmoji && !draft.iconImage ? 'emoji' : 'icon');
     var preview = el('div', { class: 'picker-preview', style: colorVars({ color: color }) }, [ tileEl(draft, 'big') ]);
 
     var uploadBtn = el('button', { class: 'btn', onclick: function() { iconTarget = draft; iconInput.click(); } });
@@ -980,30 +1040,79 @@
     var actions = el('div', { class: 'picker-actions' }, [uploadBtn]);
     if (draft.iconImage) {
       actions.appendChild(el('button', { class: 'btn btn-text', text: 'Remove photo', onclick: function() { draft.iconImage = ''; render(); } }));
+    } else if (draft.icon) {
+      actions.appendChild(el('button', { class: 'btn btn-text', text: 'Remove icon', onclick: function() { draft.icon = ''; render(); } }));
     }
 
-    var grid = el('div', { class: 'emoji-grid' });
-    EMOJIS.forEach(function(emoji) {
-      var selected = !draft.iconImage && draft.icon === emoji;
-      grid.appendChild(el('button', {
-        class: 'emoji-btn' + (selected ? ' selected' : ''),
-        text: emoji,
-        'aria-label': 'Use icon ' + emoji,
-        'aria-pressed': selected ? 'true' : 'false',
-        onclick: function() { draft.icon = selected ? '' : emoji; draft.iconImage = ''; render(); }
+    var tabs = el('div', { class: 'segmented picker-tabs', role: 'group', 'aria-label': 'Icon type' });
+    [['icon', 'Icon'], ['emoji', 'Emoji']].forEach(function(t) {
+      tabs.appendChild(el('button', {
+        class: 'seg' + (tab === t[0] ? ' on' : ''),
+        'aria-pressed': tab === t[0] ? 'true' : 'false',
+        text: t[1],
+        onclick: function() { modal.iconTab = t[0]; render(); }
       }));
     });
 
-    var custom = el('input', { type: 'text', placeholder: 'Or type your own emoji', maxlength: '8', 'aria-label': 'Type your own emoji' });
-    custom.value = EMOJIS.indexOf(draft.icon) === -1 ? draft.icon : '';
-    custom.addEventListener('input', function(e) { draft.icon = e.target.value; draft.iconImage = ''; });
-    custom.addEventListener('change', function() { render(); });
+    var body;
+    if (tab === 'icon') {
+      var search = el('input', { type: 'text', placeholder: 'Search icons', 'aria-label': 'Search icons' });
+      var list = el('div', { class: 'icon-list' });
+      (window.HT_ICON_GROUPS || []).forEach(function(g) {
+        var grid = el('div', { class: 'icon-grid' });
+        g[1].forEach(function(name) {
+          var selected = !draft.iconImage && draft.icon === 'i:' + name;
+          var b = el('button', {
+            class: 'pick-btn' + (selected ? ' selected' : ''),
+            'data-name': name,
+            'data-group': g[0].toLowerCase(),
+            'aria-label': name.replace(/-/g, ' '),
+            'aria-pressed': selected ? 'true' : 'false',
+            onclick: function() { draft.icon = selected ? '' : 'i:' + name; draft.iconImage = ''; render(); }
+          });
+          b.innerHTML = lucideSvg(name, 22);
+          grid.appendChild(b);
+        });
+        list.appendChild(el('div', { class: 'icon-group' }, [ el('p', { class: 'icon-group-title', text: g[0] }), grid ]));
+      });
+      // Searching only hides and shows buttons (no re-render), so the keyboard stays open
+      search.addEventListener('input', function(e) {
+        var raw = e.target.value.trim().toLowerCase(), dashed = raw.replace(/\s+/g, '-');
+        Array.prototype.forEach.call(list.querySelectorAll('.icon-group'), function(group) {
+          var any = false;
+          Array.prototype.forEach.call(group.querySelectorAll('button'), function(b) {
+            var show = !raw || b.getAttribute('data-name').indexOf(dashed) !== -1 || b.getAttribute('data-group').indexOf(raw) !== -1;
+            b.hidden = !show;
+            if (show) any = true;
+          });
+          group.hidden = !any;
+        });
+      });
+      body = el('div', {}, [ el('div', { class: 'picker-custom' }, [ search ]), list ]);
+    } else {
+      var grid2 = el('div', { class: 'emoji-grid' });
+      EMOJIS.forEach(function(emoji) {
+        var selected = !draft.iconImage && draft.icon === emoji;
+        grid2.appendChild(el('button', {
+          class: 'emoji-btn' + (selected ? ' selected' : ''),
+          text: emoji,
+          'aria-label': 'Use emoji ' + emoji,
+          'aria-pressed': selected ? 'true' : 'false',
+          onclick: function() { draft.icon = selected ? '' : emoji; draft.iconImage = ''; render(); }
+        }));
+      });
+      var custom = el('input', { type: 'text', placeholder: 'Or type your own emoji', maxlength: '8', 'aria-label': 'Type your own emoji' });
+      custom.value = EMOJIS.indexOf(draft.icon) === -1 && draft.icon.indexOf('i:') !== 0 ? draft.icon : '';
+      custom.addEventListener('input', function(e) { draft.icon = e.target.value; draft.iconImage = ''; });
+      custom.addEventListener('change', function() { render(); });
+      body = el('div', {}, [ grid2, el('div', { class: 'picker-custom' }, [ custom ]) ]);
+    }
 
     return el('div', { class: 'field' }, [
       el('label', { text: 'Icon (optional)' }),
       el('div', { class: 'picker-top' }, [ preview, actions ]),
-      grid,
-      el('div', { class: 'picker-custom' }, [ custom ])
+      tabs,
+      body
     ]);
   }
 
@@ -1203,11 +1312,17 @@
       el('button', { class: 'btn', text: 'Add category', onclick: function() { openCategory(null, 'settings'); } })
     ]);
 
-    var badges = MILESTONES.slice().reverse().map(function(m) { return m.icon + ' ' + m.days + (m.days === 1 ? ' day' : ' days'); }).join('   ');
-    var badgeField = el('div', { class: 'field' }, [
-      el('label', { text: 'Streak badges' }),
-      el('p', { class: 'hint', text: badges })
-    ]);
+    var badgeRow = el('div', { class: 'badge-row' });
+    MILESTONES.slice().reverse().forEach(function(m) {
+      var item = el('span', { class: 'badge-item' });
+      var ic = document.createElement('span');
+      ic.className = 'ico';
+      ic.innerHTML = lucideSvg(m.icon, 18);
+      item.appendChild(ic);
+      item.appendChild(document.createTextNode(m.days + (m.days === 1 ? ' day' : ' days')));
+      badgeRow.appendChild(item);
+    });
+    var badgeField = el('div', { class: 'field' }, [ el('label', { text: 'Streak badges' }), badgeRow ]);
 
     var done = el('div', { class: 'modal-actions' }, [ el('span', {}), el('button', { class: 'btn btn-primary', text: 'Done', onclick: closeModal }) ]);
     var last = null;
@@ -1241,10 +1356,24 @@
     var kids = [ el('p', { class: 'hint day-date', text: dateLabel }) ];
 
     if (canEdit) {
-      kids.push(el('div', { class: 'day-status' }, [
-        el('button', { class: 'btn' + (done ? ' on' : ''), 'aria-pressed': done ? 'true' : 'false', text: done ? 'Done' : 'Mark done', onclick: function() { handleCheck(habit, key); } }),
-        el('button', { class: 'btn' + (rest ? ' on' : ''), 'aria-pressed': rest ? 'true' : 'false', text: 'Rest day', onclick: function() { setRest(habit.id, key, !rest); render(); } })
-      ]));
+      var status = done ? 'done' : rest ? 'rest' : 'none';
+      var segs = el('div', { class: 'segmented day-seg', role: 'group', 'aria-label': 'Status for this day', style: colorVars(habit) });
+      [['none', 'Not done'], ['done', 'Done'], ['rest', 'Rest day']].forEach(function(opt) {
+        var on = status === opt[0];
+        segs.appendChild(el('button', {
+          class: 'seg seg-' + opt[0] + (on ? ' on' : ''),
+          'aria-pressed': on ? 'true' : 'false',
+          text: opt[1],
+          onclick: function() {
+            if (on) return;
+            if (opt[0] === 'done') { if (rest) setRest(habit.id, key, false); handleCheck(habit, key); }
+            else if (opt[0] === 'rest') { setRest(habit.id, key, true); render(); }
+            else if (done) handleCheck(habit, key);
+            else { setRest(habit.id, key, false); render(); }
+          }
+        }));
+      });
+      kids.push(segs);
     } else {
       kids.push(el('p', { class: 'hint', text: (done ? 'Done' : rest ? 'Rest day' : 'Not done') + '. Days older than a week are view-only.' }));
     }
@@ -1311,7 +1440,7 @@
     var enter = !modal.shown; // animate only when a sheet first opens, not on every re-render inside it
     modal.shown = true;
     var box = el('div', { class: 'modal' + (enter ? ' enter' : ''), role: 'dialog', 'aria-modal': 'true' }, [ el('h2', { text: title }) ].concat(children));
-    var overlay = el('div', { class: 'overlay', onclick: function(e){ if (e.target === overlay) closeModal(); } }, [box]);
+    var overlay = el('div', { class: 'overlay' + (enter ? ' enter' : ''), onclick: function(e){ if (e.target === overlay) closeModal(); } }, [box]);
     return overlay;
   }
 
@@ -1559,15 +1688,15 @@
     function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
     var created = addDays(new Date(), -150).toISOString();
     state.categories = [
-      { id: 'c_study', name: 'Study', icon: EMOJIS[0], iconImage: '' },
-      { id: 'c_fit', name: 'Fitness', icon: EMOJIS[4], iconImage: '' },
-      { id: 'c_mind', name: 'Mind', icon: EMOJIS[7], iconImage: '' }
+      { id: 'c_study', name: 'Study', icon: 'i:graduation-cap', iconImage: '' },
+      { id: 'c_fit', name: 'Fitness', icon: 'i:dumbbell', iconImage: '' },
+      { id: 'c_mind', name: 'Mind', icon: 'i:brain', iconImage: '' }
     ];
     var defs = [
-      ['Read 20 pages', 'a chapter before bed', EMOJIS[0], '#4fd1e8', 'c_study', 0.8, { type: 'daily' }],
-      ['Workout', 'strength or a run', EMOJIS[4], '#f0726a', 'c_fit', 0.6, { type: 'daily' }],
-      ['Meditate', '10 quiet minutes', EMOJIS[7], '#a78bfa', 'c_mind', 0.7, { type: 'daily' }],
-      ['Practice guitar', '', EMOJIS[13], '#f5b94a', 'c_study', 0.55, { type: 'weekdays', days: [1, 2, 3, 4, 5] }]
+      ['Read 20 pages', 'a chapter before bed', 'i:book-open', '#4fd1e8', 'c_study', 0.8, { type: 'daily' }],
+      ['Workout', 'strength or a run', 'i:dumbbell', '#f0726a', 'c_fit', 0.6, { type: 'daily' }],
+      ['Meditate', '10 quiet minutes', 'i:flower-2', '#a78bfa', 'c_mind', 0.7, { type: 'daily' }],
+      ['Practice guitar', '', 'i:guitar', '#f5b94a', 'c_study', 0.55, { type: 'weekdays', days: [1, 2, 3, 4, 5] }]
     ];
     state.habits = []; state.checkins = {};
     defs.forEach(function(def, n) {
