@@ -8,6 +8,10 @@
   var VIEW_KEY = 'habit-tracker-view';          // which view you last picked (new, separate key)
   var COLORS = ['#4fd1e8', '#f0726a', '#5aa9f0', '#a78bfa', '#6ee7a0', '#f5b94a', '#f472b6', '#94a3b8'];
   var FALLBACK_COLOR = '#94a3b8';
+  // The first version of the app used a muted palette. On load those colors are swapped for
+  // their vivid equivalents (one time, only the color text changes).
+  var LEGACY_COLORS = { '#8fa998': '#6ee7a0', '#d9a566': '#f5b94a', '#7b93b0': '#5aa9f0', '#c68a7c': '#f0726a', '#9689b0': '#a78bfa', '#6fa8a0': '#4fd1e8' };
+  var NUDGE_KEY = 'habit-tracker-nudge-until';
   var WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var FILTER_KEY = 'habit-tracker-filter';      // which category chip is selected (new, separate key)
   var DEFAULT_WEEKS = 12;                       // heat map range if you never change it
@@ -51,11 +55,11 @@
   var state = { habits: [], checkins: {}, categories: [], settings: { heatmapWeeks: DEFAULT_WEEKS }, notes: {}, rest: {} }; // checkins[habitId] = { 'YYYY-MM-DD': true }
   var photos = {}; // { 'habitId|YYYY-MM-DD': 'data:image/jpeg;base64,...' }
   var view = 'cards'; // 'cards' | 'checklist' | 'compact'
-  var fx = { pop: null, swap: false }; // one-shot animation flags, cleared after each render
+  var fx = { pop: null, swap: true }; // one-shot animation flags, cleared after each render
   var shownPct = 0; // progress bar width last drawn, so it can animate to the new value
   var scrollLocked = false, lockedY = 0;
   var filter = 'all'; // 'all' | a category id | 'none' (uncategorized)
-  var modal = null; // { kind: 'habit'|'category'|'settings'|'day'|'gallery'|'stats', mode: 'add'|'edit', draft: {...}, returnTo?: 'settings' }
+  var modal = null; // { kind: 'habit'|'category'|'settings'|'day'|'gallery'|'stats'|'archived', mode: 'add'|'edit', draft: {...}, returnTo?: 'settings' }
   var ready = false;
   var photosReady = false;
 
@@ -244,6 +248,12 @@
     if (!Array.isArray(state.categories)) state.categories = [];
     if (!state.settings) state.settings = {};
     state.settings.heatmapWeeks = clampWeeks(state.settings.heatmapWeeks || DEFAULT_WEEKS);
+    var recolored = false;
+    state.habits.forEach(function(h) {
+      var upgraded = LEGACY_COLORS[(h.color || '').toLowerCase()];
+      if (upgraded) { h.color = upgraded; recolored = true; }
+    });
+    if (recolored) save();
     if (DEMO && !state.habits.length) seedDemo();
     try {
       var v = localStorage.getItem(VIEW_KEY);
@@ -258,6 +268,7 @@
   function setFilter(f) {
     filter = f;
     fx.swap = true;
+    haptic();
     try { localStorage.setItem(FILTER_KEY, f); } catch (e) {}
     render();
   }
@@ -265,6 +276,7 @@
   function setView(v) {
     view = v;
     fx.swap = true;
+    haptic();
     try { localStorage.setItem(VIEW_KEY, v); } catch (e) {}
     render();
   }
@@ -500,11 +512,15 @@
   // One rule for every check button (card, list, day sheet).
   // "Photo required" habits only count once a photo is attached, so checking one opens the camera.
   function handleCheck(habit, key) {
+    haptic();
     var hasPhoto = !!getPhoto(habit.id, key);
     if (isDone(habit, key)) {
       if (habit.photoRequired && hasPhoto && !confirm('Un-check this day? Its photo will be deleted too.')) return;
       setDone(habit.id, key, false);
-      if (habit.photoRequired && hasPhoto) deletePhoto(habit.id, key); else render();
+      if (habit.photoRequired && hasPhoto) deletePhoto(habit.id, key); else {
+        render();
+        showToast('Unchecked.', 'Undo', function() { setDone(habit.id, key, true); render(); });
+      }
       return;
     }
     if (habit.photoRequired && !hasPhoto) { triggerPhotoPicker(habit.id, key, true); return; }
@@ -564,7 +580,7 @@
       'aria-pressed': doneToday ? 'true' : 'false',
       onclick: function() { if (available || doneToday) handleCheck(habit, todayKey()); }
     });
-    if (doneToday) btn.appendChild(iconEl('check'));
+    btn.appendChild(iconEl('check')); // faint when not done, so the button reads as a check
     return btn;
   }
 
@@ -710,11 +726,17 @@
     ]);
   }
 
+  // Each card gets its position so the entrance animation can ripple down the list
+  function stagger(list) {
+    Array.prototype.forEach.call(list.children, function(child, i) { child.style.setProperty('--i', Math.min(i, 8)); });
+    return list;
+  }
+
   function renderList(activeHabits) {
     var list = el('div', { class: 'list list-' + view + (fx.swap ? ' swap' : '') });
     if (view === 'cards') {
       activeHabits.forEach(function(h) { list.appendChild(renderCard(h)); });
-      return list;
+      return stagger(list);
     }
     var today = new Date();
     var key = todayKey();
@@ -730,7 +752,7 @@
       list.appendChild(el('h2', { class: 'group-label', text: 'Off today' }));
       off.forEach(function(h) { list.appendChild(render1(h)); });
     }
-    return list;
+    return stagger(list);
   }
 
   function renderTopbar() {
@@ -787,7 +809,7 @@
   // The bar starts at its old width and grows to the new one, because the whole screen is
   // rebuilt on every change and a rebuilt element would otherwise just appear at the new width.
   function makeBarFill(pct) {
-    var fill = el('span', { style: 'width:' + shownPct + '%' });
+    var fill = el('span', { class: pct === 100 ? 'full' : '', style: 'width:' + shownPct + '%' });
     shownPct = pct;
     requestAnimationFrame(function() { requestAnimationFrame(function() { fill.style.width = pct + '%'; }); });
     return fill;
@@ -844,6 +866,8 @@
     var app = document.getElementById('app');
     // The screen is rebuilt on every change, so remember scroll positions and put them back
     var oldSheet = app.querySelector('.modal');
+    var oldIconList = app.querySelector('.icon-list');
+    if (oldIconList && modal) modal.iconScroll = oldIconList.scrollTop;
     var sheetTop = oldSheet ? oldSheet.scrollTop : 0;
     var keepSheetScroll = !!(modal && modal.shown); // a freshly opened sheet starts at the top
     var pageY = scrollLocked ? lockedY : window.pageYOffset;
@@ -866,6 +890,8 @@
         el('button', { class: 'btn btn-primary', text: 'Add your first habit', onclick: function(){ openModal('add', null); } })
       ]));
     } else {
+      var nudge = renderBackupNudge();
+      if (nudge) app.appendChild(nudge);
       app.appendChild(renderChips(activeHabits));
       var shown = activeHabits.filter(matchesFilter);
       if (shown.length) {
@@ -883,6 +909,7 @@
         : modal.kind === 'day' ? renderDaySheet()
         : modal.kind === 'gallery' ? renderGallerySheet()
         : modal.kind === 'stats' ? renderStatsSheet()
+        : modal.kind === 'archived' ? renderArchivedSheet()
         : renderHabitSheet());
     }
 
@@ -892,6 +919,8 @@
 
     var newSheet = app.querySelector('.modal');
     if (newSheet && keepSheetScroll) newSheet.scrollTop = sheetTop;
+    var newIconList = app.querySelector('.icon-list');
+    if (newIconList && modal && modal.iconScroll) newIconList.scrollTop = modal.iconScroll;
     syncScrollLock(pageY);
     if (!scrollLocked) window.scrollTo(0, pageY);
     fx.pop = null; fx.swap = false;
@@ -920,14 +949,37 @@
     fileInput.click();
   }
 
+  // Haptics: Android vibrates. iPhone Safari has no vibration API, but toggling a hidden
+  // "switch" checkbox makes iOS 17.4+ tick. Best-effort: older iPhones simply stay silent.
+  var hapticLabel = document.createElement('label');
+  hapticLabel.setAttribute('aria-hidden', 'true');
+  hapticLabel.style.cssText = 'position:fixed;left:-200px;top:0;opacity:0;pointer-events:none';
+  var hapticSwitch = document.createElement('input');
+  hapticSwitch.type = 'checkbox';
+  hapticSwitch.setAttribute('switch', '');
+  hapticSwitch.tabIndex = -1;
+  hapticLabel.appendChild(hapticSwitch);
+  document.body.appendChild(hapticLabel);
+  function haptic() {
+    try {
+      if (navigator.vibrate) navigator.vibrate(10);
+      else hapticLabel.click();
+    } catch (e) {}
+  }
+
+  // A message at the bottom of the screen, optionally with one action such as Undo
   var toastTimer = null;
-  function showToast(message) {
+  function showToast(message, actionLabel, action) {
     var old = document.querySelector('.toast');
     if (old) old.remove();
-    var t = el('div', { class: 'toast', role: 'status', text: message });
+    var kids = [ el('span', { text: message }) ];
+    var t = el('div', { class: 'toast', role: 'status' }, kids);
+    if (actionLabel && action) {
+      t.appendChild(el('button', { class: 'toast-action', text: actionLabel, onclick: function() { t.remove(); action(); } }));
+    }
     document.body.appendChild(t);
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function() { t.remove(); }, 5000);
+    toastTimer = setTimeout(function() { t.remove(); }, actionLabel ? 7000 : 5000);
   }
 
   // ---------- sheets (habit, category, settings) ----------
@@ -969,7 +1021,7 @@
     var overlay = document.querySelector('.overlay');
     if (overlay && !overlay.classList.contains('leaving')) {
       overlay.classList.add('leaving');
-      setTimeout(finishClose, 170);
+      setTimeout(finishClose, 260);
       return;
     }
     finishClose();
@@ -1050,7 +1102,7 @@
         class: 'seg' + (tab === t[0] ? ' on' : ''),
         'aria-pressed': tab === t[0] ? 'true' : 'false',
         text: t[1],
-        onclick: function() { modal.iconTab = t[0]; render(); }
+        onclick: function() { modal.iconTab = t[0]; modal.iconScroll = 0; render(); }
       }));
     });
 
@@ -1075,9 +1127,10 @@
         });
         list.appendChild(el('div', { class: 'icon-group' }, [ el('p', { class: 'icon-group-title', text: g[0] }), grid ]));
       });
-      // Searching only hides and shows buttons (no re-render), so the keyboard stays open
-      search.addEventListener('input', function(e) {
-        var raw = e.target.value.trim().toLowerCase(), dashed = raw.replace(/\s+/g, '-');
+      // Searching only hides and shows buttons (no re-render), so the keyboard stays open.
+      // The search text and scroll position are remembered when the sheet redraws after a tap.
+      function applyFilter(text) {
+        var raw = text.trim().toLowerCase(), dashed = raw.replace(/\s+/g, '-');
         Array.prototype.forEach.call(list.querySelectorAll('.icon-group'), function(group) {
           var any = false;
           Array.prototype.forEach.call(group.querySelectorAll('button'), function(b) {
@@ -1087,7 +1140,10 @@
           });
           group.hidden = !any;
         });
-      });
+      }
+      search.value = modal.iconSearch || '';
+      applyFilter(search.value);
+      search.addEventListener('input', function(e) { modal.iconSearch = e.target.value; applyFilter(e.target.value); });
       body = el('div', {}, [ el('div', { class: 'picker-custom' }, [ search ]), list ]);
     } else {
       var grid2 = el('div', { class: 'emoji-grid' });
@@ -1221,7 +1277,12 @@
 
     var actions = el('div', { class: 'modal-actions' }, [
       modal.mode === 'edit'
-        ? el('button', { class: 'btn btn-text', text: 'Archive', onclick: function() { archiveHabit(draft.id); closeModal(); } })
+        ? el('button', { class: 'btn btn-text', text: 'Archive', onclick: function() {
+          var archivedId = draft.id;
+          archiveHabit(archivedId);
+          closeModal();
+          showToast('Habit archived.', 'Undo', function() { restoreHabit(archivedId); render(); });
+        } })
         : el('span', {}),
       el('div', { class: 'modal-actions-right' }, [cancelBtn, saveBtn])
     ]);
@@ -1336,11 +1397,20 @@
         el('button', { class: 'btn', text: 'Restore from file', onclick: function() { restoreInput.click(); } })
       ])
     ]);
-    return sheet('Settings', [ rangeField, catField, backupField, badgeField, done ]);
+    var archivedCount = state.habits.filter(function(h) { return h.archived; }).length;
+    var parts = [ rangeField, catField ];
+    if (archivedCount) {
+      parts.push(el('div', { class: 'field' }, [
+        el('label', { text: 'Archived habits' }),
+        el('button', { class: 'btn', text: 'Manage archived (' + archivedCount + ')', onclick: function() { modal = { kind: 'archived', returnTo: 'settings' }; render(); } })
+      ]));
+    }
+    return sheet('Settings', parts.concat([ backupField, badgeField, done ]));
   }
 
   // ---- day view: one habit on one day (check-in, photo, note, rest day) ----
   function openDay(habitId, dateKey, returnTo) {
+    haptic();
     modal = { kind: 'day', habitId: habitId, dateKey: dateKey, returnTo: returnTo };
     render();
   }
@@ -1435,13 +1505,114 @@
     return sheet(habit.name + ' photos', kids);
   }
 
+  // ---- archived habits: bring one back, or delete it for good ----
+  function restoreHabit(id) {
+    var h = state.habits.find(function(x) { return x.id === id; });
+    if (h) h.archived = false;
+    save();
+  }
+
+  function deleteHabitForever(id) {
+    state.habits = state.habits.filter(function(h) { return h.id !== id; });
+    delete state.checkins[id]; delete state.notes[id]; delete state.rest[id];
+    Object.keys(photos).forEach(function(k) {
+      if (k.indexOf(id + '|') === 0) { delete photos[k]; idbDelete(k).catch(function() {}); }
+    });
+    save();
+  }
+
+  function renderArchivedSheet() {
+    var items = state.habits.filter(function(h) { return h.archived; });
+    var kids = [];
+    if (!items.length) kids.push(el('p', { class: 'hint', text: 'No archived habits.' }));
+    items.forEach(function(h) {
+      kids.push(el('div', { class: 'cat-row archived-row', style: colorVars(h) }, [
+        tileEl(h),
+        el('span', { class: 'cat-name', text: h.name }),
+        el('button', { class: 'btn btn-text', text: 'Restore', onclick: function() { restoreHabit(h.id); render(); } }),
+        el('button', { class: 'btn btn-text', text: 'Delete', onclick: function() {
+          if (confirm('Delete "' + h.name + '" with all its check-ins, notes and photos? This cannot be undone.')) { deleteHabitForever(h.id); render(); }
+        } })
+      ]));
+    });
+    kids.push(el('div', { class: 'modal-actions' }, [ el('span', {}), el('button', { class: 'btn btn-primary', text: 'Close', onclick: closeModal }) ]));
+    return sheet('Archived habits', kids);
+  }
+
+  // Gentle reminder when there is no backup yet, or the last one is over a month old
+  function renderBackupNudge() {
+    if (DEMO) return null;
+    var last = null;
+    try {
+      var until = localStorage.getItem(NUDGE_KEY);
+      if (until && Date.now() < Number(until)) return null;
+      last = localStorage.getItem(LAST_BACKUP_KEY);
+    } catch (e) { return null; }
+    if (last && Date.now() - Date.parse(last) < 30 * 86400000) return null;
+    return el('div', { class: 'nudge' }, [
+      el('p', { text: last ? 'It has been over a month since your last backup.' : 'Back up your habits. They live only on this phone.' }),
+      el('div', { class: 'nudge-actions' }, [
+        el('button', { class: 'btn btn-primary', text: 'Back up now', onclick: exportBackup }),
+        el('button', { class: 'btn btn-text', text: 'Later', onclick: function() {
+          try { localStorage.setItem(NUDGE_KEY, String(Date.now() + 7 * 86400000)); } catch (e) {}
+          render();
+        } })
+      ])
+    ]);
+  }
+
   // Shared bottom-sheet shell
   function sheet(title, children) {
     var enter = !modal.shown; // animate only when a sheet first opens, not on every re-render inside it
     modal.shown = true;
-    var box = el('div', { class: 'modal' + (enter ? ' enter' : ''), role: 'dialog', 'aria-modal': 'true' }, [ el('h2', { text: title }) ].concat(children));
+    var grab = el('div', { class: 'sheet-grab', 'aria-hidden': 'true' }, [ el('span', {}) ]);
+    var heading = el('h2', { text: title });
+    var box = el('div', { class: 'modal' + (enter ? ' enter' : ''), role: 'dialog', 'aria-modal': 'true' }, [ grab, heading ].concat(children));
     var overlay = el('div', { class: 'overlay' + (enter ? ' enter' : ''), onclick: function(e){ if (e.target === overlay) closeModal(); } }, [box]);
+    enableDragToClose(box, overlay, [grab, heading]);
     return overlay;
+  }
+
+  // Drag a sheet down by its handle or title to close it. Past about 110px, or with a quick
+  // flick, it slides away; otherwise it springs back. The dark backdrop fades as you drag.
+  function enableDragToClose(box, overlay, handles) {
+    var startY = 0, dy = 0, startTime = 0, dragging = false;
+    function begin(e) {
+      dragging = true; dy = 0; startY = e.clientY; startTime = Date.now();
+      box.style.animation = 'none';
+      box.style.transition = 'none';
+      try { e.target.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    function move(e) {
+      if (!dragging) return;
+      dy = Math.max(0, e.clientY - startY); // dragging up does nothing
+      box.style.transform = 'translateY(' + dy + 'px)';
+      overlay.style.background = 'rgba(0,0,0,' + (0.65 * (1 - Math.min(1, dy / 420))).toFixed(3) + ')';
+    }
+    function end() {
+      if (!dragging) return;
+      dragging = false;
+      var speed = dy / Math.max(1, Date.now() - startTime); // pixels per millisecond
+      if (dy > 110 || (speed > 0.6 && dy > 40)) {
+        haptic();
+        box.style.transition = 'transform 0.22s ease-in';
+        overlay.style.transition = 'background 0.22s ease-in';
+        box.style.transform = 'translateY(100%)';
+        overlay.style.background = 'rgba(0,0,0,0)';
+        setTimeout(finishClose, 220);
+      } else {
+        box.style.transition = 'transform 0.4s var(--spring)';
+        overlay.style.transition = 'background 0.3s ease';
+        box.style.transform = '';
+        overlay.style.background = '';
+      }
+    }
+    handles.forEach(function(h) {
+      h.addEventListener('pointerdown', begin);
+      h.addEventListener('pointermove', move);
+      h.addEventListener('pointerup', end);
+      h.addEventListener('pointercancel', end);
+    });
   }
 
   // ---------- backup and restore ----------

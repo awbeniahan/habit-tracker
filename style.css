@@ -666,3 +666,78 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 /* Scrolling inside a sheet must never scroll the page behind it */
 .overlay, .modal { overscroll-behavior: contain; }
 .modal { -webkit-overflow-scrolling: touch; }
+
+/* ---------- Round 2: livelier colors, springy motion, new screens ---------- */
+:root {
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);   /* overshoots a little, then settles */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);    /* fast start, long soft landing */
+}
+
+/* Color: tinted cards, tinted empty cells, outlined check buttons */
+.card {
+  background-image: linear-gradient(155deg, rgba(var(--c-rgb), 0.22), rgba(var(--c-rgb), 0.08) 60%);
+  border-color: rgba(var(--c-rgb), 0.3);
+}
+.row {
+  background-image: linear-gradient(rgba(var(--c-rgb), 0.1), rgba(var(--c-rgb), 0.1));
+  border-color: rgba(var(--c-rgb), 0.24);
+}
+.tile { background: rgba(var(--c-rgb), 0.24); }
+.cell { background: rgba(var(--c-rgb), 0.13); }
+.cell.off { background: rgba(var(--c-rgb), 0.05); }
+.check-btn { position: relative; background: rgba(var(--c-rgb), 0.08); border-color: rgba(var(--c-rgb), 0.42); }
+.check-btn:not(.done) svg { color: var(--c); opacity: 0.5; }
+.check-btn.done { background: var(--c); border-color: var(--c); color: #0c0e12; }
+.bar > span { transition: width 0.6s var(--ease-out), background-color 0.3s ease; }
+.bar > span.full { background: #6ee7a0; }
+.filter-chip.add { color: var(--text-2); }
+
+/* Touch feedback: press in fast, spring back slowly */
+button { transition: transform 0.35s var(--spring), background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease; }
+button:active { transform: scale(0.92); transition-duration: 0.08s, 0.2s, 0.2s, 0.2s, 0.2s; }
+.check-btn:active { transform: scale(0.88); }
+.add-btn:active { transform: scale(0.88); }
+.info:active { transform: none; opacity: 0.7; }
+.cell { transition: transform 0.3s var(--spring); }
+.cell.tap:active { transform: scale(0.7); transition-duration: 0.08s; }
+
+/* Sheets rise from the bottom and drop away again */
+.modal.enter { animation: sheet-up2 0.45s var(--ease-out); }
+.overlay.enter { animation: fade-in 0.3s ease-out; }
+.overlay.leaving { animation: fade-out 0.26s ease-in forwards; pointer-events: none; }
+.overlay.leaving .modal { animation: sheet-down2 0.26s cubic-bezier(0.4, 0, 1, 1) forwards; }
+@keyframes sheet-up2 { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheet-down2 { from { transform: none; } to { transform: translateY(100%); } }
+
+/* Cards rise in one after another */
+.list.swap { animation: none; }
+.list.swap > * { animation: rise 0.5s var(--ease-out) both; animation-delay: calc(var(--i, 0) * 50ms); }
+@keyframes rise { from { opacity: 0; transform: translateY(18px) scale(0.98); } to { opacity: 1; transform: none; } }
+
+/* Completing a habit: bounce, expanding ring, and the check draws itself */
+@keyframes pop { 0% { transform: scale(0.7); } 50% { transform: scale(1.18); } 75% { transform: scale(0.95); } 100% { transform: scale(1); } }
+.check-btn.pop, .cell.pop { animation: pop 0.45s var(--ease-out); }
+.check-btn.pop::after { content: ""; position: absolute; inset: -2px; border-radius: inherit; border: 2px solid var(--c); pointer-events: none; animation: ring 0.6s ease-out forwards; }
+@keyframes ring { from { opacity: 0.9; transform: scale(1); } to { opacity: 0; transform: scale(1.6); } }
+@keyframes draw { to { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: no-preference) {
+  .check-btn.pop svg path { stroke-dasharray: 24; stroke-dashoffset: 24; animation: draw 0.3s 0.1s ease-out forwards; }
+}
+
+/* iPhone's rubber-band scroll needs a page that is at least a hair taller than the screen */
+#app { min-height: 101vh; min-height: calc(100dvh + 1px); }
+
+/* New screens */
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 14px; animation: rise 0.35s var(--ease-out); }
+.toast-action { flex: none; min-height: 36px; padding: 0 12px; border: 0; border-radius: 10px; background: rgba(0, 0, 0, 0.12); color: var(--accent-ink); font-weight: 700; cursor: pointer; }
+.nudge { margin-bottom: 16px; padding: 14px 16px; border-radius: 18px; background: rgba(245, 185, 74, 0.12); border: 1px solid rgba(245, 185, 74, 0.28); }
+.nudge p { margin: 0 0 12px; font-size: 14.5px; line-height: 1.4; color: var(--text); }
+.nudge-actions { display: flex; align-items: center; gap: 8px; }
+.archived-row { cursor: default; }
+.archived-row .btn { min-height: 40px; }
+
+/* Drag handle at the top of every sheet. touch-action none lets a finger drag the sheet
+   instead of scrolling the page. */
+.sheet-grab { display: flex; justify-content: center; padding: 4px 0 14px; margin: -14px 0 2px; touch-action: none; cursor: grab; }
+.sheet-grab span { width: 40px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
+.modal h2 { touch-action: none; }

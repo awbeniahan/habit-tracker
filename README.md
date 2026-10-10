@@ -14,7 +14,9 @@ A dark, minimalist habit tracker that works fully offline on your phone. Every h
 - **Day view:** tap any heat map cell to see or edit that day: check-in, photo, note, or mark a rest day. Only the last 7 days can be edited.
 - **Rest days** keep a streak alive without counting as a check-in.
 - **Photo gallery** per habit, and a **stats screen** (streak, best streak, 30-day rate, most missed weekday).
-- **Backup and restore** to a single file, because phones can clear web-app storage.
+- **Backup and restore** to a single file, because phones can clear web-app storage, plus a gentle reminder when your last backup is over a month old.
+- **Archive and restore** habits, and **undo** after un-checking or archiving.
+- **Feels native:** sheets rise from the bottom, buttons spring, checks animate, and iPhone haptics are used where Safari allows (iOS 17.4+).
 
 ## How it works
 
