@@ -6,11 +6,11 @@
   var STORAGE_KEY = DEMO ? 'habit-tracker-demo-state' : 'habit-tracker-state-v1'; // habits, check-ins, categories, notes, settings
   var LAST_BACKUP_KEY = 'habit-tracker-last-backup';
   var VIEW_KEY = 'habit-tracker-view';          // which view you last picked (new, separate key)
-  var COLORS = ['#4fd1e8', '#f0726a', '#5aa9f0', '#a78bfa', '#6ee7a0', '#f5b94a', '#f472b6', '#94a3b8'];
+  var COLORS = ['#5fb3c9', '#d9776f', '#6a9fd8', '#9a8bd6', '#6fbf93', '#d4a85a', '#cf7fa8', '#94a3b8'];
   var FALLBACK_COLOR = '#94a3b8';
-  // The first version of the app used a muted palette. On load those colors are swapped for
-  // their vivid equivalents (one time, only the color text changes).
-  var LEGACY_COLORS = { '#8fa998': '#6ee7a0', '#d9a566': '#f5b94a', '#7b93b0': '#5aa9f0', '#c68a7c': '#f0726a', '#9689b0': '#a78bfa', '#6fa8a0': '#4fd1e8' };
+  // Older versions used other palettes. On load those colors are swapped for the current ones
+  // (only the color text changes, and it only happens for the exact old values).
+  var LEGACY_COLORS = { '#8fa998': '#6fbf93', '#d9a566': '#d4a85a', '#7b93b0': '#6a9fd8', '#c68a7c': '#d9776f', '#9689b0': '#9a8bd6', '#6fa8a0': '#5fb3c9', '#4fd1e8': '#5fb3c9', '#f0726a': '#d9776f', '#5aa9f0': '#6a9fd8', '#a78bfa': '#9a8bd6', '#6ee7a0': '#6fbf93', '#f5b94a': '#d4a85a', '#f472b6': '#cf7fa8' };
   var NUDGE_KEY = 'habit-tracker-nudge-until';
   var WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   var FILTER_KEY = 'habit-tracker-filter';      // which category chip is selected (new, separate key)
@@ -572,10 +572,12 @@
   function makeCheckBtn(habit) {
     var doneToday = isDone(habit, todayKey());
     var restToday = isRest(habit, todayKey());
-    var available = isScheduled(habit, new Date()) && !restToday;
-    var label = restToday ? 'Rest day' : !available && !doneToday ? 'Not scheduled today' : (doneToday ? 'Mark not done' : 'Mark done');
+    // A habit can be checked off even on a day it is not scheduled (a bonus day). Only a rest day blocks it.
+    var scheduled = isScheduled(habit, new Date());
+    var available = !restToday;
+    var label = restToday ? 'Rest day' : doneToday ? 'Mark not done' : !scheduled ? 'Mark done (not scheduled today)' : 'Mark done';
     var btn = el('button', {
-      class: 'check-btn' + (doneToday ? ' done' : '') + (doneToday && fx.pop === habit.id ? ' pop' : '') + (!available && !doneToday ? ' dim' : ''),
+      class: 'check-btn' + (doneToday ? ' done' : '') + (doneToday && fx.pop === habit.id ? ' pop' : '') + ((!scheduled || restToday) && !doneToday ? ' dim' : ''),
       'aria-label': habit.name + ': ' + label,
       'aria-pressed': doneToday ? 'true' : 'false',
       onclick: function() { if (available || doneToday) handleCheck(habit, todayKey()); }
@@ -1864,10 +1866,10 @@
       { id: 'c_mind', name: 'Mind', icon: 'i:brain', iconImage: '' }
     ];
     var defs = [
-      ['Read 20 pages', 'a chapter before bed', 'i:book-open', '#4fd1e8', 'c_study', 0.8, { type: 'daily' }],
-      ['Workout', 'strength or a run', 'i:dumbbell', '#f0726a', 'c_fit', 0.6, { type: 'daily' }],
-      ['Meditate', '10 quiet minutes', 'i:flower-2', '#a78bfa', 'c_mind', 0.7, { type: 'daily' }],
-      ['Practice guitar', '', 'i:guitar', '#f5b94a', 'c_study', 0.55, { type: 'weekdays', days: [1, 2, 3, 4, 5] }]
+      ['Read 20 pages', 'a chapter before bed', 'i:book-open', '#5fb3c9', 'c_study', 0.8, { type: 'daily' }],
+      ['Workout', 'strength or a run', 'i:dumbbell', '#d9776f', 'c_fit', 0.6, { type: 'daily' }],
+      ['Meditate', '10 quiet minutes', 'i:flower-2', '#9a8bd6', 'c_mind', 0.7, { type: 'daily' }],
+      ['Practice guitar', '', 'i:guitar', '#d4a85a', 'c_study', 0.55, { type: 'weekdays', days: [1, 2, 3, 4, 5] }]
     ];
     state.habits = []; state.checkins = {};
     defs.forEach(function(def, n) {

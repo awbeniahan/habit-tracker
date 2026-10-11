@@ -542,7 +542,7 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 }
 .switch { flex: none; position: relative; width: 46px; height: 28px; border-radius: 99px; background: rgba(255, 255, 255, 0.16); transition: background 0.15s ease; }
 .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--text); transition: transform 0.15s ease; }
-.switch-row[aria-pressed="true"] .switch { background: #6ee7a0; }
+.switch-row[aria-pressed="true"] .switch { background: #6fbf93; }
 .switch-row[aria-pressed="true"] .switch::after { transform: translateX(18px); background: #0c0e12; }
 
 .field textarea {
@@ -689,7 +689,7 @@ button:focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
 .check-btn:not(.done) svg { color: var(--c); opacity: 0.5; }
 .check-btn.done { background: var(--c); border-color: var(--c); color: #0c0e12; }
 .bar > span { transition: width 0.6s var(--ease-out), background-color 0.3s ease; }
-.bar > span.full { background: #6ee7a0; }
+.bar > span.full { background: #6fbf93; }
 .filter-chip.add { color: var(--text-2); }
 
 /* Touch feedback: press in fast, spring back slowly */
@@ -741,3 +741,18 @@ button:active { transform: scale(0.92); transition-duration: 0.08s, 0.2s, 0.2s, 
 .sheet-grab { display: flex; justify-content: center; padding: 4px 0 14px; margin: -14px 0 2px; touch-action: none; cursor: grab; }
 .sheet-grab span { width: 40px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.22); }
 .modal h2 { touch-action: none; }
+
+/* Not-scheduled days are dimmed but still tappable */
+.check-btn.dim { opacity: 0.55; cursor: pointer; }
+
+/* ---------- Tone-down: calmer, tech-minimal color ---------- */
+.card { background-image: linear-gradient(155deg, rgba(var(--c-rgb), 0.14), rgba(var(--c-rgb), 0.05) 60%); border-color: rgba(var(--c-rgb), 0.2); }
+.row { background-image: linear-gradient(rgba(var(--c-rgb), 0.06), rgba(var(--c-rgb), 0.06)); border-color: rgba(var(--c-rgb), 0.16); }
+.tile { background: rgba(var(--c-rgb), 0.16); }
+.cell { background: rgba(var(--c-rgb), 0.09); }
+.cell.off { background: rgba(var(--c-rgb), 0.04); }
+.check-btn { background: rgba(var(--c-rgb), 0.05); border-color: rgba(var(--c-rgb), 0.3); }
+.check-btn:not(.done) svg { opacity: 0.45; }
+.stat-habit { background-image: linear-gradient(rgba(var(--c-rgb), 0.05), rgba(var(--c-rgb), 0.05)); border-color: rgba(var(--c-rgb), 0.16); }
+.nudge { background: rgba(212, 168, 90, 0.09); border-color: rgba(212, 168, 90, 0.22); }
+.demo-banner { background: rgba(212, 168, 90, 0.1); color: #d4a85a; }

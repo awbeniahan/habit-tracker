@@ -1,5 +1,5 @@
 // Bump this version string on EVERY release so devices pick up the update.
-var CACHE_NAME = 'habit-tracker-v8';
+var CACHE_NAME = 'habit-tracker-v10';
 var ASSETS = [
   './',
   './index.html',
